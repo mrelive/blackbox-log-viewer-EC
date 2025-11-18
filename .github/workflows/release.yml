@@ -29,11 +29,10 @@ jobs:
         shell: pwsh
         run: |
           # Build for Windows only - x64
-          pkg cli-convert.js `
-            --targets node18-win-x64 `
-            --output bbl-decode.exe `
-            --public `
-            --compress GZip
+            npm ci
+            npm run build:decoder
+            # Package the CommonJS bundle (.cjs) to avoid ESM import errors
+            pkg decoder-entry.cjs --targets node18-win-x64 --output bbl-decode.exe --public --compress GZip
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
