@@ -25,21 +25,14 @@ jobs:
       - name: Install pkg globally
         run: npm install -g pkg
       
-      - name: Build standalone executables for all platforms
+      - name: Build standalone Windows executable
         run: |
-          # Build for Windows, Linux, and macOS - all x64
-          # Use --public to include all dependencies
-          # Use --compress GZip to reduce size
+          # Build for Windows only - x64
           pkg cli-convert.js \
-            --targets node18-win-x64,node18-linux-x64,node18-macos-x64 \
+            --targets node18-win-x64 \
             --output bbl-decode \
             --public \
             --compress GZip
-          
-          # This creates:
-          # - bbl-decode.exe (Windows)
-          # - bbl-decode-linux (Linux)
-          # - bbl-decode-macos (macOS)
       
       - name: Create Windows release package
         run: |
@@ -68,125 +61,43 @@ jobs:
           
           zip -r bbl-decoder-windows.zip bbl-decoder-windows
       
-      - name: Create Linux release package
-        run: |
-          mkdir -p bbl-decoder-linux
-          cp bbl-decode-linux bbl-decoder-linux/bbl-decode
-          chmod +x bbl-decoder-linux/bbl-decode
-          cp LICENSE bbl-decoder-linux/
-          cp -r bin bbl-decoder-linux/
-          cp -r src bbl-decoder-linux/
-          
-          cat > bbl-decoder-linux/README.txt << 'EOF'
-          Blackbox Decoder - Linux Standalone
-          
-          QUICK START:
-          ./bbl-decode flight.bbl output.csv
-          
-          NO INSTALLATION NEEDED!
-          
-          USAGE:
-          ./bbl-decode flight.bbl output.csv
-          ./bbl-decode flight.bbl output.json --format json
-          ./bbl-decode --help
-          
-          OPTIONAL: Add to PATH
-          sudo cp bbl-decode /usr/local/bin/
-          
-          LICENSE: GPLv3 (see LICENSE file)
-          Repository: https://github.com/mrelive/blackbox-log-viewer-EC
-          EOF
-          
-          tar -czf bbl-decoder-linux.tar.gz bbl-decoder-linux
-      
-      - name: Create macOS release package
-        run: |
-          mkdir -p bbl-decoder-macos
-          cp bbl-decode-macos bbl-decoder-macos/bbl-decode
-          chmod +x bbl-decoder-macos/bbl-decode
-          cp LICENSE bbl-decoder-macos/
-          cp -r bin bbl-decoder-macos/
-          cp -r src bbl-decoder-macos/
-          
-          cat > bbl-decoder-macos/README.txt << 'EOF'
-          Blackbox Decoder - macOS Standalone
-          
-          QUICK START:
-          ./bbl-decode flight.bbl output.csv
-          
-          NO INSTALLATION NEEDED!
-          
-          NOTE: On first run, macOS may block the app. 
-          Right-click the file and select "Open" to allow it.
-          
-          USAGE:
-          ./bbl-decode flight.bbl output.csv
-          ./bbl-decode flight.bbl output.json --format json
-          ./bbl-decode --help
-          
-          OPTIONAL: Add to PATH
-          sudo cp bbl-decode /usr/local/bin/
-          
-          LICENSE: GPLv3 (see LICENSE file)
-          Repository: https://github.com/mrelive/blackbox-log-viewer-EC
-          EOF
-          
-          tar -czf bbl-decoder-macos.tar.gz bbl-decoder-macos
-      
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            bbl-decoder-windows.zip
-            bbl-decoder-linux.tar.gz
-            bbl-decoder-macos.tar.gz
+          files: bbl-decoder-windows.zip
           body: |
-            ## Blackbox Decoder Release - Multi-Platform
+            ## Blackbox Decoder Release - Windows
             
-            ### Downloads
+            ### Download
             - **Windows**: `bbl-decoder-windows.zip` (64-bit)
-            - **Linux**: `bbl-decoder-linux.tar.gz` (64-bit)
-            - **macOS**: `bbl-decoder-macos.tar.gz` (Intel & Apple Silicon compatible)
             
             ### Quick Start
-            **Windows:**
             ```
             bbl-decode.exe flight.bbl output.csv
             ```
             
-            **Linux/macOS:**
-            ```bash
-            ./bbl-decode flight.bbl output.csv
-            ```
-            
-            **No Node.js installation required!** These are fully standalone executables with Node.js bundled inside.
+            **No Node.js installation required!** This is a fully standalone executable with Node.js bundled inside.
             
             ### Usage Examples
             ```bash
             # Convert BBL to CSV
-            bbl-decode flight.bbl output.csv
+            bbl-decode.exe flight.bbl output.csv
             
             # Convert to JSON
-            bbl-decode flight.bbl output.json --format json
+            bbl-decode.exe flight.bbl output.json --format json
             
             # Show help
-            bbl-decode --help
+            bbl-decode.exe --help
             ```
             
             ### What's New
-            - ✅ Standalone executables for Windows, Linux, and macOS
+            - ✅ Standalone Windows executable
             - ✅ No dependencies - Node.js 18 bundled inside
             - ✅ JSON and CSV output formats
             - ✅ GPL v3 compliant
             
             ### Requirements
             - **Windows**: 10/11 (64-bit)
-            - **Linux**: Any modern 64-bit distribution
-            - **macOS**: 10.13+ (High Sierra or later)
-            
-            ### Notes
-            - macOS users: On first run, right-click and select "Open" to bypass Gatekeeper
-            - Linux/macOS users: Make executable with `chmod +x bbl-decode` if needed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
