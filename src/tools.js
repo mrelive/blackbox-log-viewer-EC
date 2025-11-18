@@ -1,3 +1,79 @@
+/**
+ * Stub jQuery for headless Node.js operation
+ * The legacy GUI code references $ but we don't need jQuery in headless mode
+ */
+if (typeof globalThis.$ === 'undefined') {
+  globalThis.$ = function(selector) {
+    return {
+      length: 0,
+      addClass: function() { return this; },
+      removeClass: function() { return this; },
+      toggleClass: function() { return this; },
+      css: function() { return this; },
+      html: function() { return this; },
+      text: function() { return this; },
+      append: function() { return this; },
+      remove: function() { return this; },
+      show: function() { return this; },
+      hide: function() { return this; },
+      on: function() { return this; },
+      off: function() { return this; },
+      trigger: function() { return this; },
+      val: function() { return ''; },
+      attr: function() { return ''; },
+      prop: function() { return false; },
+      data: function() { return null; },
+      each: function() { return this; },
+    };
+  };
+  globalThis.$.extend = Object.assign;
+  globalThis.$.isArray = Array.isArray;
+  globalThis.$.isFunction = (x) => typeof x === 'function';
+  globalThis.$.map = (arr, fn) => arr.map(fn);
+}
+
+/**
+ * Stub semver for headless Node.js operation
+ * The legacy GUI code uses semver for version comparisons
+ */
+if (typeof globalThis.semver === 'undefined') {
+  globalThis.semver = {
+    gte: function(v1, v2) {
+      // Simple version comparison (not spec-compliant but good enough for basic cases)
+      const parseVersion = (v) => {
+        if (typeof v !== 'string') return [0, 0, 0];
+        return v.split('.').map(x => parseInt(x) || 0);
+      };
+      const a = parseVersion(v1);
+      const b = parseVersion(v2);
+      for (let i = 0; i < 3; i++) {
+        if (a[i] > b[i]) return true;
+        if (a[i] < b[i]) return false;
+      }
+      return true; // Equal
+    },
+    lte: function(v1, v2) {
+      return !this.gt(v1, v2);
+    },
+    gt: function(v1, v2) {
+      const parseVersion = (v) => {
+        if (typeof v !== 'string') return [0, 0, 0];
+        return v.split('.').map(x => parseInt(x) || 0);
+      };
+      const a = parseVersion(v1);
+      const b = parseVersion(v2);
+      for (let i = 0; i < 3; i++) {
+        if (a[i] > b[i]) return true;
+        if (a[i] < b[i]) return false;
+      }
+      return false; // Equal
+    },
+    lt: function(v1, v2) {
+      return !this.gte(v1, v2);
+    },
+  };
+}
+
 //Convert a hexadecimal string (that represents a binary 32-bit float) into a float
 export function hexToFloat(string) {
   let arr = new Uint32Array(1);
