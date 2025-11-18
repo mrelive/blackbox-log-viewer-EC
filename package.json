@@ -1,32 +1,27 @@
 {
-  "name": "betaflight-blackbox-explorer",
-  "productName": "Blackbox Explorer",
-  "displayName": "Betaflight - Blackbox Explorer",
-  "description": "Crossplatform blackbox analitics tool for Betaflight flight control system.",
-  "version": "2025.12.0",
+  "name": "echo-corp-blackbox-decoder",
+  "productName": "ECHO CORP Blackbox Decoder",
+  "displayName": "ECHO CORP Blackbox Decoder",
+  "description": "Echo Corp standalone Betaflight blackbox log decoder (CSV/JSON output).",
+  "version": "2025.12.1",
   "type": "module",
   "main": "index.html",
   "bin": {
-    "bbl-decode": "./cli-convert.js"
+    "bbl-decode": "./decoder-entry.js"
   },
   "pkg": {
     "scripts": [
-      "cli-convert.js",
-      "src/**/*.js"
+      "decoder-entry.js"
     ],
     "assets": [
       "bin/**/*"
     ],
     "targets": [
-      "node18-win-x64",
-      "node18-linux-x64",
-      "node18-macos-x64"
+      "node18-win-x64"
     ]
   },
   "files": [
-    "cli-convert.js",
-    "src/*.js",
-    "bin/*",
+    "decoder-entry.js",
     "LICENSE"
   ],
   "default_locale": "en",
@@ -36,7 +31,8 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "build:decoder": "node build-decoder.cjs"
   },
   "repository": {
     "type": "git",
@@ -62,7 +58,8 @@
   },
   "devDependencies": {
     "inflection": "1.12.0",
-    "yarn": "^1.22.0"
+    "yarn": "^1.22.0",
+    "esbuild": "^0.21.0"
   },
   "resolutions": {
     "**/**/lodash.template": "^4.5.0"
