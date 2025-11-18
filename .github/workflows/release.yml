@@ -31,10 +31,14 @@ jobs:
           # Build for Windows only - x64
             npm ci
             $tag = "$env:GITHUB_REF" -replace 'refs/tags/', ''
-            echo "Using tag $tag for DECODER_RELEASE_TAG"
-            $env:DECODER_RELEASE_TAG = $tag
+            echo "Using tag $tag for version embedding"
+            # Embed version in built decoder before pkg bundles it
             npm run build:decoder
-            # Package the CommonJS bundle (.cjs) to avoid ESM import errors, embedding tag via env
+            # Replace version placeholder in built decoder with actual tag
+            $content = Get-Content decoder-entry.cjs -Raw
+            $content = $content -replace "process\.env\.DECODER_RELEASE_TAG \|\| ``v\`\$\{pkg\.version\}``", """$tag"""
+            Set-Content decoder-entry.cjs $content
+            # Package the CommonJS bundle (.cjs) with embedded version
             pkg decoder-entry.cjs --targets node18-win-x64 --output bbl-decode.exe --public --compress GZip
       
       - name: Create Release
