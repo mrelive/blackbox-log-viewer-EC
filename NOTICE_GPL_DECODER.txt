@@ -1,0 +1,12 @@
+Third-Party Notice — External Decoder (GPLv3)
+
+This application can interoperate with an external decoder program that is licensed under the GNU General Public License, version 3 (GPLv3). The decoder is not included in this application’s distribution. If you choose to use it, you must obtain it separately and accept its license.
+
+Component: Blackbox Log Decoder CLI ("bbl-decode")
+License: GNU General Public License v3.0 (GPLv3)
+Source: https://github.com/mrelive/blackbox-log-viewer-EC
+License Text: https://www.gnu.org/licenses/gpl-3.0.txt
+
+Copyright and license notices for the decoder are retained in the decoder’s own distribution. Your use of the decoder is governed solely by GPLv3. This proprietary application does not modify, link to, or incorporate the decoder’s source code; it invokes the decoder only as a separate executable process supplied by the user or installed separately.
+
+If you received a copy of the decoder from any party, that party must have provided the GPLv3 license terms and access to the corresponding source code or a valid offer in accordance with GPLv3 §6. If you download the decoder yourself from the link above, you can review and accept the license there.

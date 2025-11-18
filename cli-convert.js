@@ -60,18 +60,22 @@ if (args.length === 0 || args.includes('--help')) {
   console.log(`
 Betaflight Blackbox BBL to CSV/JSON Converter
 
-Usage: node cli-convert.js <input.bbl> [output] [--format csv|json]
+Usage: node cli-convert.js <input.bbl> [output] [--format csv|json] [--split] [--log N]
 
 Arguments:
   input.bbl    Path to the input blackbox .bbl file (required)
   output       Path to the output file (optional, defaults to input.csv or input.json)
   --format     Output format: 'csv' or 'json' (optional, defaults to 'csv')
+  --split      Split multi-flight logs into separate files (output-1.csv, output-2.csv, etc.)
+  --log N      Convert only flight number N (0-indexed, use with multi-flight logs)
 
 Examples:
   node cli-convert.js flight.bbl
   node cli-convert.js flight.bbl --format json
   node cli-convert.js "SAMPLES/Best Yet V8.bbl" output.csv
   node cli-convert.js "SAMPLES/Best Yet V8.bbl" output.json --format json
+  node cli-convert.js "SAMPLES/Flight 3.bbl" --split --format json
+  node cli-convert.js "SAMPLES/Flight 3.bbl" --log 2 --format json
 `);
   process.exit(0);
 }
@@ -82,6 +86,20 @@ let format = 'csv';
 if (formatIndex !== -1 && args[formatIndex + 1]) {
   format = args[formatIndex + 1].toLowerCase();
   args.splice(formatIndex, 2); // Remove --format and its value
+}
+
+const splitIndex = args.findIndex(arg => arg === '--split');
+let splitFlights = false;
+if (splitIndex !== -1) {
+  splitFlights = true;
+  args.splice(splitIndex, 1); // Remove --split
+}
+
+const logIndex = args.findIndex(arg => arg === '--log');
+let specificLog = null;
+if (logIndex !== -1 && args[logIndex + 1]) {
+  specificLog = parseInt(args[logIndex + 1]);
+  args.splice(logIndex, 2); // Remove --log and its value
 }
 
 if (!['csv', 'json'].includes(format)) {
@@ -110,46 +128,75 @@ try {
   console.log('Parsing log...');
   const flightLog = new FlightLog(fileData);
   
-  if (flightLog.getLogCount() === 0) {
+  const logCount = flightLog.getLogCount();
+  if (logCount === 0) {
     console.error('Error: No valid logs found in file');
     process.exit(1);
   }
   
-  // Open the first log
-  console.log(`Found ${flightLog.getLogCount()} log(s)`);
-  const opened = flightLog.openLog(0);
+  console.log(`Found ${logCount} log(s)`);
   
-  if (!opened) {
-    const error = flightLog.getLogError(0);
-    console.error(`Error: Failed to open log: ${error}`);
-    process.exit(1);
-  }
-  
-  // Get log info
-  const fieldNames = flightLog.getMainFieldNames();
-  const stats = flightLog.getStats();
-  const sysConfig = flightLog.getSysConfig();
-  const minTime = flightLog.getMinTime();
-  const maxTime = flightLog.getMaxTime();
-  const frameCount = stats.frame.I ? stats.frame.I.count : 0;
-  
-  console.log(`Fields: ${fieldNames.length}`);
-  console.log(`Frames: ${frameCount}`);
-  console.log(`Duration: ${((maxTime - minTime) / 1000000).toFixed(2)}s\n`);
-  
-  // Generate output based on format
-  if (format === 'json') {
-    console.log('Generating JSON...');
-    generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile);
+  // Determine which logs to process
+  let logsToProcess = [];
+  if (specificLog !== null) {
+    if (specificLog < 0 || specificLog >= logCount) {
+      console.error(`Error: Log index ${specificLog} out of range (0-${logCount - 1})`);
+      process.exit(1);
+    }
+    logsToProcess = [specificLog];
+  } else if (splitFlights) {
+    logsToProcess = Array.from({ length: logCount }, (_, i) => i);
   } else {
-    console.log('Generating CSV...');
-    generateCSV(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile);
+    logsToProcess = [0]; // Default: first log only
   }
   
-  console.log(`\n✓ Success!`);
-  console.log(`  Output: ${outputFile}`);
-  console.log(`  Format: ${format.toUpperCase()}`);
-  console.log(`  File size: ${fs.statSync(outputFile).size} bytes`);
+  // Process each log
+  for (const logIdx of logsToProcess) {
+    console.log(`\n--- Processing log ${logIdx + 1}/${logCount} ---`);
+    
+    const opened = flightLog.openLog(logIdx);
+    
+    if (!opened) {
+      const error = flightLog.getLogError(logIdx);
+      console.error(`Warning: Failed to open log ${logIdx}: ${error}`);
+      continue;
+    }
+    
+    // Get log info
+    const fieldNames = flightLog.getMainFieldNames();
+    const stats = flightLog.getStats();
+    const sysConfig = flightLog.getSysConfig();
+    const minTime = flightLog.getMinTime();
+    const maxTime = flightLog.getMaxTime();
+    const frameCount = stats.frame.I ? stats.frame.I.count : 0;
+    
+    console.log(`Fields: ${fieldNames.length}`);
+    console.log(`Frames: ${frameCount}`);
+    console.log(`Duration: ${((maxTime - minTime) / 1000000).toFixed(2)}s`);
+    
+    // Determine output filename
+    let currentOutputFile;
+    if (splitFlights && logCount > 1) {
+      const ext = format === 'json' ? '.json' : '.csv';
+      const baseName = outputFile.replace(/\.(csv|json)$/i, '');
+      currentOutputFile = `${baseName}-flight${logIdx + 1}${ext}`;
+    } else {
+      currentOutputFile = outputFile;
+    }
+    
+    // Generate output based on format
+    if (format === 'json') {
+      console.log('Generating JSON...');
+      generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile, logIdx, logCount);
+    } else {
+      console.log('Generating CSV...');
+      generateCSV(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile);
+    }
+    
+    console.log(`✓ Output: ${currentOutputFile} (${fs.statSync(currentOutputFile).size} bytes)`);
+  }
+  
+  console.log(`\n✓ Success! Converted ${logsToProcess.length} log(s)`);
   
 } catch (error) {
   console.error(`\n✗ Error: ${error.message}`);
@@ -275,20 +322,27 @@ function generateCSV(flightLog, fieldNames, sysConfig, minTime, maxTime, outputF
   fs.writeFileSync(outputFile, csv);
 }
 
-function generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile) {
+function generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile, logIdx = 0, totalLogs = 1) {
   const output = {
     metadata: {
       product: "Blackbox flight data recorder by Nicholas Sherlock",
       firmware: {},
       craft: {},
-      config: {}
+      config: {},
+      flightInfo: {
+        logIndex: logIdx,
+        totalLogs: totalLogs,
+        logNumber: logIdx + 1
+      }
     },
-    fields: fieldNames,
+    fields: fieldNames.map((name, index) => ({ name, index })),
     frames: [],
     stats: {
       duration: ((maxTime - minTime) / 1000000),
       frameCount: 0,
-      fieldCount: fieldNames.length
+      fieldCount: fieldNames.length,
+      totalFrames: 0,
+      sampleRate: 0
     }
   };
 
@@ -325,6 +379,12 @@ function generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, output
       output.frames.push(cleanedFrame);
       output.stats.frameCount++;
     }
+  }
+  
+  // Calculate stats
+  output.stats.totalFrames = output.stats.frameCount;
+  if (output.stats.duration > 0) {
+    output.stats.sampleRate = Math.round(output.stats.frameCount / output.stats.duration);
   }
 
   // Write JSON output
