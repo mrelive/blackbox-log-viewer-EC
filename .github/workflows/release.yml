@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
       - name: Checkout code
@@ -26,51 +26,25 @@ jobs:
         run: npm install -g pkg
       
       - name: Build standalone Windows executable
+        shell: pwsh
         run: |
           # Build for Windows only - x64
-          pkg cli-convert.js \
-            --targets node18-win-x64 \
-            --output bbl-decode \
-            --public \
+          pkg cli-convert.js `
+            --targets node18-win-x64 `
+            --output bbl-decode.exe `
+            --public `
             --compress GZip
-      
-      - name: Create Windows release package
-        run: |
-          mkdir -p bbl-decoder-windows
-          cp bbl-decode.exe bbl-decoder-windows/
-          cp LICENSE bbl-decoder-windows/
-          cp -r bin bbl-decoder-windows/
-          cp -r src bbl-decoder-windows/
-          
-          cat > bbl-decoder-windows/README.txt << 'EOF'
-          Blackbox Decoder - Windows Standalone
-          
-          QUICK START:
-          bbl-decode.exe flight.bbl output.csv
-          
-          NO INSTALLATION NEEDED!
-          
-          USAGE:
-          bbl-decode.exe flight.bbl output.csv
-          bbl-decode.exe flight.bbl output.json --format json
-          bbl-decode.exe --help
-          
-          LICENSE: GPLv3 (see LICENSE file)
-          Repository: https://github.com/mrelive/blackbox-log-viewer-EC
-          EOF
-          
-          zip -r bbl-decoder-windows.zip bbl-decoder-windows
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: bbl-decoder-windows.zip
+          files: bbl-decode.exe
           body: |
             ## Blackbox Decoder Release - Windows
             
             ### Download
-            - **Windows**: `bbl-decoder-windows.zip` (64-bit)
+            - **Windows**: Download `bbl-decode.exe` and run it (64-bit)
             
             ### Quick Start
             ```
