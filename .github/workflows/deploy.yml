@@ -13,10 +13,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout code (pull_request_target)
+        if: github.event_name == 'pull_request_target'
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false  # Don't persist GitHub token
+
+      - name: Checkout code (push)
+        if: github.event_name == 'push'
+        uses: actions/checkout@v5
+        with:
           persist-credentials: false  # Don't persist GitHub token
 
       - name: Cache node_modules
