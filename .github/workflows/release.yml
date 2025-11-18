@@ -28,7 +28,13 @@ jobs:
       - name: Build standalone executables for all platforms
         run: |
           # Build for Windows, Linux, and macOS - all x64
-          pkg cli-convert.js --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --output bbl-decode
+          # Use --public to include all dependencies
+          # Use --compress GZip to reduce size
+          pkg cli-convert.js \
+            --targets node18-win-x64,node18-linux-x64,node18-macos-x64 \
+            --output bbl-decode \
+            --public \
+            --compress GZip
           
           # This creates:
           # - bbl-decode.exe (Windows)
