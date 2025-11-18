@@ -7,11 +7,11 @@
   "type": "module",
   "main": "index.html",
   "bin": {
-    "bbl-decode": "./decoder-entry.js"
+    "bbl-decode": "./decoder-entry.cjs"
   },
   "pkg": {
     "scripts": [
-      "decoder-entry.js"
+      "decoder-entry.cjs"
     ],
     "assets": [
       "bin/**/*"
@@ -21,7 +21,7 @@
     ]
   },
   "files": [
-    "decoder-entry.js",
+    "decoder-entry.cjs",
     "LICENSE"
   ],
   "default_locale": "en",
