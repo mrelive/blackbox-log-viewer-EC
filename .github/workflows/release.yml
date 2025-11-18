@@ -1,0 +1,92 @@
+name: Create Release Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install --production
+      
+      - name: Create release package
+        run: |
+          mkdir -p bbl-decoder-release
+          cp cli-convert.js bbl-decoder-release/
+          cp install.bat bbl-decoder-release/
+          cp install.ps1 bbl-decoder-release/
+          cp LICENSE bbl-decoder-release/
+          cp -r bin bbl-decoder-release/
+          cp -r src bbl-decoder-release/
+          cp -r node_modules bbl-decoder-release/
+          cp package.json bbl-decoder-release/
+          
+          # Create README for end users
+          cat > bbl-decoder-release/README.txt << 'EOF'
+          Blackbox Decoder - Installation Instructions
+          
+          QUICK START:
+          1. Double-click install.bat
+          2. Follow the prompts
+          3. Done!
+          
+          The decoder will be installed globally as "bbl-decode"
+          
+          REQUIREMENTS:
+          - Node.js 18 or later (installer will prompt to download if missing)
+          
+          USAGE:
+          bbl-decode flight.bbl output.json --format json
+          bbl-decode flight.bbl output.csv
+          
+          For help:
+          bbl-decode --help
+          
+          LICENSE:
+          This software is licensed under GPLv3.
+          See LICENSE file for full text.
+          
+          Repository: https://github.com/mrelive/blackbox-log-viewer-EC
+          EOF
+          
+          # Create ZIP
+          cd bbl-decoder-release
+          zip -r ../bbl-decoder-windows.zip .
+          cd ..
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: bbl-decoder-windows.zip
+          body: |
+            ## Blackbox Decoder Release
+            
+            ### Installation
+            1. Download `bbl-decoder-windows.zip`
+            2. Extract to a folder
+            3. Double-click `install.bat`
+            
+            ### What's New
+            - Standalone CLI decoder
+            - Simple installer
+            - JSON and CSV output formats
+            
+            ### Requirements
+            - Windows 10/11
+            - Node.js 18+ (installer will prompt if missing)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
