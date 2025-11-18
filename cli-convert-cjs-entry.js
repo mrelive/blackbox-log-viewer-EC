@@ -24,8 +24,16 @@ const { FlightLog } = require('./src/flightlog.js');
 
 const pkg = require('./package.json');
 const args = process.argv.slice(2);
+// Semantic release tag (provided by workflow env) falls back to package version
+const releaseTag = process.env.DECODER_RELEASE_TAG || `v${pkg.version}`;
+
+if (args.includes('--version')) {
+  console.log(releaseTag);
+  process.exit(0);
+}
+
 if (args.length === 0 || args.includes('--help')) {
-  console.log(`\nECHO CORP Blackbox Decoder v${pkg.version}\n\nUsage: bbl-decode <input.bbl> [output] [--format csv|json] [--split] [--log N]\n`);
+  console.log(`\nECHO CORP Blackbox Decoder ${releaseTag}\n\nUsage: bbl-decode <input.bbl> [output] [--format csv|json] [--split] [--log N]\n`);
   process.exit(0);
 }
 

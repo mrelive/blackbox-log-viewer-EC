@@ -30,8 +30,11 @@ jobs:
         run: |
           # Build for Windows only - x64
             npm ci
+            $tag = "$env:GITHUB_REF" -replace 'refs/tags/', ''
+            echo "Using tag $tag for DECODER_RELEASE_TAG"
+            $env:DECODER_RELEASE_TAG = $tag
             npm run build:decoder
-            # Package the CommonJS bundle (.cjs) to avoid ESM import errors
+            # Package the CommonJS bundle (.cjs) to avoid ESM import errors, embedding tag via env
             pkg decoder-entry.cjs --targets node18-win-x64 --output bbl-decode.exe --public --compress GZip
       
       - name: Create Release
