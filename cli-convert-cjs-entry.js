@@ -52,54 +52,75 @@ if(!fs.existsSync(inputFile)){ console.error('Input file not found: '+inputFile)
 const defaultExt = format==='json'?'.json':'.csv';
 const outputFile = args[1] || inputFile.replace(/\.bbl$/i, defaultExt);
 
-try {
-  const fileData = fs.readFileSync(inputFile);
-  const flightLog = new FlightLog(fileData);
-  const logCount = flightLog.getLogCount();
-  if(logCount===0){ console.error('No valid logs found'); process.exit(1); }
-  let logsToProcess = [];
-  if(specificLog!=null){ if(specificLog<0||specificLog>=logCount){ console.error('Log index out of range'); process.exit(1);} logsToProcess=[specificLog]; }
-  else if(splitFlights){ logsToProcess = Array.from({length:logCount}, (_,i)=>i); }
-  else { logsToProcess=[0]; }
+;(async () => {
+  try {
+    const fileData = fs.readFileSync(inputFile);
+    const flightLog = new FlightLog(fileData);
+    const logCount = flightLog.getLogCount();
+    if(logCount===0){ console.error('No valid logs found'); process.exit(1); }
+    let logsToProcess = [];
+    if(specificLog!=null){ if(specificLog<0||specificLog>=logCount){ console.error('Log index out of range'); process.exit(1);} logsToProcess=[specificLog]; }
+    else if(splitFlights){ logsToProcess = Array.from({length:logCount}, (_,i)=>i); }
+    else { logsToProcess=[0]; }
 
-  for(const idx of logsToProcess){
-    if(!flightLog.openLog(idx)){ console.warn('Failed to open log', idx, flightLog.getLogError(idx)); continue; }
-    const fieldNames = flightLog.getMainFieldNames();
-    const stats = flightLog.getStats();
-    const minTime = flightLog.getMinTime();
-    const maxTime = flightLog.getMaxTime();
-    let outName = outputFile;
-    if(splitFlights && logCount>1){ const base=outputFile.replace(/\.(csv|json)$/i,''); const ext=format==='json'?'.json':'.csv'; outName = `${base}-flight${idx+1}${ext}`; }
+    for(const idx of logsToProcess){
+      if(!flightLog.openLog(idx)){ console.warn('Failed to open log', idx, flightLog.getLogError(idx)); continue; }
+      const fieldNames = flightLog.getMainFieldNames();
+      const minTime = flightLog.getMinTime();
+      const maxTime = flightLog.getMaxTime();
+      let outName = outputFile;
+      if(splitFlights && logCount>1){ const base=outputFile.replace(/\.(csv|json)$/i,''); const ext=format==='json'?'.json':'.csv'; outName = `${base}-flight${idx+1}${ext}`; }
 
-    if(format==='json') {
-      const jsonOut = buildJSON(flightLog, fieldNames, minTime, maxTime, idx, logCount);
-      fs.writeFileSync(outName, JSON.stringify(jsonOut,null,2));
-    } else {
-      const csvOut = buildCSV(flightLog, fieldNames, minTime, maxTime);
-      fs.writeFileSync(outName, csvOut);
+      if(format==='json') {
+        await writeJSONStream(flightLog, fieldNames, minTime, maxTime, idx, logCount, outName);
+      } else {
+        await writeCSVStream(flightLog, fieldNames, minTime, maxTime, outName);
+      }
+      console.log('✓ Output', outName);
     }
-    console.log('✓ Output', outName);
+    console.log('✓ Success');
+  } catch(err){
+    console.error('Conversion failed:', err.message);
+    process.exit(1);
   }
-  console.log('✓ Success');
-} catch(err){
-  console.error('Conversion failed:', err.message);
-  process.exit(1);
+})();
+
+function writeCSVStream(flightLog, fieldNames, minTime, maxTime, outName){
+  return new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(outName, { encoding: 'utf8', highWaterMark: 1<<20 }); // 1MB buffer
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+    ws.write(fieldNames.map(n=>`"${n}"`).join(',')+'\n');
+    const chunks = flightLog.getChunksInTimeRange(minTime,maxTime);
+    for(const chunk of chunks){
+      for(const frame of chunk.frames){
+        for(let i=0;i<frame.length;i++) if(frame[i]==null) frame[i]='NaN';
+        ws.write(frame.join(',')+'\n');
+      }
+    }
+    ws.end();
+  });
 }
 
-function buildCSV(flightLog, fieldNames, minTime, maxTime){
-  let csv = fieldNames.map(n=>`"${n}"`).join(',')+'\n';
-  const chunks = flightLog.getChunksInTimeRange(minTime,maxTime);
-  for(const chunk of chunks){
-    for(const frame of chunk.frames){
-      const cleaned = frame.map(v => (v==null?'NaN':v));
-      csv += cleaned.join(',')+'\n';
+function writeJSONStream(flightLog, fieldNames, minTime, maxTime, logIdx, totalLogs, outName){
+  return new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(outName, { encoding: 'utf8', highWaterMark: 1<<20 });
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+    ws.write('{"fields":');
+    ws.write(JSON.stringify(fieldNames.map((n,i)=>({name:n,index:i}))));
+    ws.write(',"frames":[');
+    let first = true;
+    const chunks = flightLog.getChunksInTimeRange(minTime,maxTime);
+    for(const chunk of chunks){
+      for(const frame of chunk.frames){
+        const row = frame.map(v => (v==null?null:v));
+        if(!first) ws.write(',');
+        ws.write(JSON.stringify(row));
+        first = false;
+      }
     }
-  }
-  return csv.trimEnd();
-}
-function buildJSON(flightLog, fieldNames, minTime, maxTime, logIdx, totalLogs){
-  const out={fields: fieldNames.map((n,i)=>({name:n,index:i})), frames: [], meta:{logIndex:logIdx,totalLogs,logNumber:logIdx+1}};
-  const chunks = flightLog.getChunksInTimeRange(minTime,maxTime);
-  for(const chunk of chunks){ for(const frame of chunk.frames){ out.frames.push(frame.map(v=> (v==null?null:v))); } }
-  return out;
+    ws.write(`],"meta":${JSON.stringify({logIndex:logIdx,totalLogs,logNumber:logIdx+1})}}`);
+    ws.end();
+  });
 }

@@ -7,6 +7,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 // Stub browser globals that the parser code expects
 globalThis.window = { requestAnimationFrame: (cb) => setTimeout(cb, 16) };
@@ -55,6 +57,17 @@ globalThis.console = console;
 const { FlightLog } = await import('./src/flightlog.js');
 
 const args = process.argv.slice(2);
+
+// Support --version to integrate with Nexus updater (prints vX.Y.Z)
+if (args.includes('--version')) {
+  try {
+    const pkg = require('./package.json');
+    console.log(pkg.version ? `v${pkg.version}` : 'v0.0.0');
+  } catch {
+    console.log('v0.0.0');
+  }
+  process.exit(0);
+}
 
 if (args.length === 0 || args.includes('--help')) {
   console.log(`
@@ -187,13 +200,13 @@ try {
     // Generate output based on format
     if (format === 'json') {
       console.log('Generating JSON...');
-      generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile, logIdx, logCount);
+      await generateJSONStream(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile, logIdx, logCount);
     } else {
       console.log('Generating CSV...');
-      generateCSV(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile);
+      await generateCSVStream(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile);
     }
-    
-    console.log(`✓ Output: ${currentOutputFile} (${fs.statSync(currentOutputFile).size} bytes)`);
+    const outSize = fs.statSync(currentOutputFile).size;
+    console.log(`✓ Output: ${currentOutputFile} (${outSize} bytes)`);
   }
   
   console.log(`\n✓ Success! Converted ${logsToProcess.length} log(s)`);
@@ -207,186 +220,146 @@ try {
   process.exit(1);
 }
 
-function generateCSV(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile) {
-  // Add system config headers - output ALL fields from sysConfig
-  let csv = '';
-  csv += '"Product","Blackbox flight data recorder by Nicholas Sherlock"\n';
-  
-  // Add all system config values in the same order as the perfect sample
-  if (sysConfig) {
-    // Basic firmware info
-    if (sysConfig.firmwareType !== undefined) csv += `"firmwareType",${sysConfig.firmwareType}\n`;
-    if (sysConfig.firmware) csv += `"firmware","${sysConfig.firmware}"\n`;
-    if (sysConfig.firmwarePatch !== undefined) csv += `"firmwarePatch",${sysConfig.firmwarePatch}\n`;
-    if (sysConfig.firmwareVersion) csv += `"firmwareVersion","${sysConfig.firmwareVersion}"\n`;
-    // Note: These fields use the exact header names with spaces as keys in sysConfig
-    if (sysConfig['Firmware revision']) csv += `"Firmware revision","${sysConfig['Firmware revision']}"\n`;
-    if (sysConfig['Firmware date']) csv += `"Firmware date","${sysConfig['Firmware date']}"\n`;
-    if (sysConfig['Board information']) csv += `"Board information","${sysConfig['Board information']}"\n`;
-    if (sysConfig['Log start datetime']) csv += `"Log start datetime","${sysConfig['Log start datetime']}"\n`;
-    if (sysConfig['Craft name']) csv += `"Craft name","${sysConfig['Craft name']}"\n`;
-    
-    // Frame intervals
-    if (sysConfig.frameIntervalI !== undefined) csv += `"frameIntervalI",${sysConfig.frameIntervalI}\n`;
-    if (sysConfig.frameIntervalPNum !== undefined) csv += `"frameIntervalPNum",${sysConfig.frameIntervalPNum}\n`;
-    if (sysConfig.frameIntervalPDenom !== undefined) csv += `"frameIntervalPDenom",${sysConfig.frameIntervalPDenom}\n`;
-    
-    // Throttle
-    if (sysConfig.minthrottle !== undefined) csv += `"minthrottle",${sysConfig.minthrottle}\n`;
-    if (sysConfig.maxthrottle !== undefined) csv += `"maxthrottle",${sysConfig.maxthrottle}\n`;
-    
-    // Gyro and motor
-    if (sysConfig.gyroScale !== undefined) csv += `"gyroScale",${sysConfig.gyroScale}\n`;
-    if (sysConfig.motorOutput) csv += `"motorOutput","${sysConfig.motorOutput.join(',')}"\n`;
-    
-    // Accelerometer and battery
-    if (sysConfig.acc_1G !== undefined) csv += `"acc_1G",${sysConfig.acc_1G}\n`;
-    if (sysConfig.vbatscale !== undefined) csv += `"vbatscale",${sysConfig.vbatscale}\n`;
-    if (sysConfig.vbatmincellvoltage !== undefined) csv += `"vbatmincellvoltage",${sysConfig.vbatmincellvoltage}\n`;
-    if (sysConfig.vbatwarningcellvoltage !== undefined) csv += `"vbatwarningcellvoltage",${sysConfig.vbatwarningcellvoltage}\n`;
-    if (sysConfig.vbatmaxcellvoltage !== undefined) csv += `"vbatmaxcellvoltage",${sysConfig.vbatmaxcellvoltage}\n`;
-    if (sysConfig.vbatref !== undefined) csv += `"vbatref",${sysConfig.vbatref}\n`;
-    
-    // Current meter
-    if (sysConfig.currentMeterOffset !== undefined) csv += `"currentMeterOffset",${sysConfig.currentMeterOffset}\n`;
-    if (sysConfig.currentMeterScale !== undefined) csv += `"currentMeterScale",${sysConfig.currentMeterScale}\n`;
-    
-    // Output ALL remaining sysConfig fields dynamically
-    const outputFields = [
-      'looptime', 'gyro_sync_denom', 'pid_process_denom', 'thrMid', 'thrExpo',
-      'tpa_mode', 'tpa_rate', 'tpa_breakpoint', 'rc_rates', 'rc_expo', 'rates', 'rate_limits',
-      'rollPID', 'pitchPID', 'yawPID', 'levelPID', 'magPID',
-      'd_max_gain', 'd_max_advance', 'dterm_filter_type', 'dterm_lpf_hz', 'dterm_lpf_dyn_hz',
-      'dterm_filter2_type', 'dterm_lpf2_hz', 'yaw_lpf_hz', 'dterm_notch_hz', 'dterm_notch_cutoff',
-      'itermWindupPointPercent', 'iterm_relax', 'iterm_relax_type', 'iterm_relax_cutoff',
-      'pidAtMinThrottle', 'anti_gravity_gain', 'anti_gravity_cutoff_hz', 'anti_gravity_p_gain',
-      'abs_control_gain', 'use_integrated_yaw', 'ff_transition', 'ff_averaging', 'ff_smooth_factor',
-      'ff_jitter_factor', 'ff_boost', 'ff_max_rate_limit', 'yawRateAccelLimit', 'rateAccelLimit',
-      'pidSumLimit', 'pidSumLimitYaw', 'deadband', 'yaw_deadband',
-      'gyro_lpf', 'gyro_soft_type', 'gyro_lowpass_hz', 'gyro_lowpass_dyn_hz', 'gyro_soft2_type',
-      'gyro_lowpass2_hz', 'gyro_notch_hz', 'gyro_notch_cutoff', 'gyro_to_use',
-      'dyn_notch_max_hz', 'dyn_notch_count', 'dyn_notch_q', 'dyn_notch_min_hz',
-      'dshot_bidir', 'motor_poles', 'gyro_rpm_notch_harmonics', 'gyro_rpm_notch_q',
-      'gyro_rpm_notch_min', 'rpm_filter_fade_range_hz', 'rpm_notch_lpf',
-      'acc_lpf_hz', 'acc_hardware', 'baro_hardware', 'mag_hardware',
-      'gyro_cal_on_first_arm', 'airmode_activate_throttle'
-    ];
-    
-    for (const field of outputFields) {
-      const value = sysConfig[field];
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          csv += `"${field}","${value.join(',')}"\n`;
-        } else {
-          csv += `"${field}",${value}\n`;
+async function generateCSVStream(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile) {
+  await new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(outputFile, { encoding: 'utf8', highWaterMark: 1<<20 });
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+
+    // System config headers
+    ws.write('"Product","Blackbox flight data recorder by Nicholas Sherlock"\n');
+    if (sysConfig) {
+      const writeKV = (k, v, quoteV=false) => {
+        if (v === undefined || v === null) return;
+        if (Array.isArray(v)) { ws.write(`"${k}","${v.join(',')}"\n`); return; }
+        if (quoteV || typeof v === 'string') ws.write(`"${k}","${String(v)}"\n`);
+        else ws.write(`"${k}",${v}\n`);
+      };
+      writeKV('firmwareType', sysConfig.firmwareType);
+      writeKV('firmware', sysConfig.firmware, true);
+      writeKV('firmwarePatch', sysConfig.firmwarePatch);
+      writeKV('firmwareVersion', sysConfig.firmwareVersion, true);
+      writeKV('Firmware revision', sysConfig['Firmware revision'], true);
+      writeKV('Firmware date', sysConfig['Firmware date'], true);
+      writeKV('Board information', sysConfig['Board information'], true);
+      writeKV('Log start datetime', sysConfig['Log start datetime'], true);
+      writeKV('Craft name', sysConfig['Craft name'], true);
+      writeKV('frameIntervalI', sysConfig.frameIntervalI);
+      writeKV('frameIntervalPNum', sysConfig.frameIntervalPNum);
+      writeKV('frameIntervalPDenom', sysConfig.frameIntervalPDenom);
+      writeKV('minthrottle', sysConfig.minthrottle);
+      writeKV('maxthrottle', sysConfig.maxthrottle);
+      writeKV('gyroScale', sysConfig.gyroScale);
+      writeKV('motorOutput', sysConfig.motorOutput);
+      writeKV('acc_1G', sysConfig.acc_1G);
+      writeKV('vbatscale', sysConfig.vbatscale);
+      writeKV('vbatmincellvoltage', sysConfig.vbatmincellvoltage);
+      writeKV('vbatwarningcellvoltage', sysConfig.vbatwarningcellvoltage);
+      writeKV('vbatmaxcellvoltage', sysConfig.vbatmaxcellvoltage);
+      writeKV('vbatref', sysConfig.vbatref);
+      writeKV('currentMeterOffset', sysConfig.currentMeterOffset);
+      writeKV('currentMeterScale', sysConfig.currentMeterScale);
+
+      const outputFields = [
+        'looptime', 'gyro_sync_denom', 'pid_process_denom', 'thrMid', 'thrExpo',
+        'tpa_mode', 'tpa_rate', 'tpa_breakpoint', 'rc_rates', 'rc_expo', 'rates', 'rate_limits',
+        'rollPID', 'pitchPID', 'yawPID', 'levelPID', 'magPID',
+        'd_max_gain', 'd_max_advance', 'dterm_filter_type', 'dterm_lpf_hz', 'dterm_lpf_dyn_hz',
+        'dterm_filter2_type', 'dterm_lpf2_hz', 'yaw_lpf_hz', 'dterm_notch_hz', 'dterm_notch_cutoff',
+        'itermWindupPointPercent', 'iterm_relax', 'iterm_relax_type', 'iterm_relax_cutoff',
+        'pidAtMinThrottle', 'anti_gravity_gain', 'anti_gravity_cutoff_hz', 'anti_gravity_p_gain',
+        'abs_control_gain', 'use_integrated_yaw', 'ff_transition', 'ff_averaging', 'ff_smooth_factor',
+        'ff_jitter_factor', 'ff_boost', 'ff_max_rate_limit', 'yawRateAccelLimit', 'rateAccelLimit',
+        'pidSumLimit', 'pidSumLimitYaw', 'deadband', 'yaw_deadband',
+        'gyro_lpf', 'gyro_soft_type', 'gyro_lowpass_hz', 'gyro_lowpass_dyn_hz', 'gyro_soft2_type',
+        'gyro_lowpass2_hz', 'gyro_notch_hz', 'gyro_notch_cutoff', 'gyro_to_use',
+        'dyn_notch_max_hz', 'dyn_notch_count', 'dyn_notch_q', 'dyn_notch_min_hz',
+        'dshot_bidir', 'motor_poles', 'gyro_rpm_notch_harmonics', 'gyro_rpm_notch_q',
+        'gyro_rpm_notch_min', 'rpm_filter_fade_range_hz', 'rpm_notch_lpf',
+        'acc_lpf_hz', 'acc_hardware', 'baro_hardware', 'mag_hardware',
+        'gyro_cal_on_first_arm', 'airmode_activate_throttle'
+      ];
+      for (const field of outputFields) writeKV(field, sysConfig[field]);
+
+      // Remaining fields not yet written
+      if (sysConfig && typeof sysConfig === 'object') {
+        for (const key of Object.keys(sysConfig)) {
+          // Skip duplicates already written by checking presence in output buffer is costly; assume explicit list covers most.
+          const val = sysConfig[key];
+          if (val === undefined || val === null) continue;
+          // Heuristic: avoid writing duplicates for known keys
+          if (['firmwareType','firmware','firmwarePatch','firmwareVersion','Firmware revision','Firmware date','Board information','Log start datetime','Craft name','frameIntervalI','frameIntervalPNum','frameIntervalPDenom','minthrottle','maxthrottle','gyroScale','motorOutput','acc_1G','vbatscale','vbatmincellvoltage','vbatwarningcellvoltage','vbatmaxcellvoltage','vbatref','currentMeterOffset','currentMeterScale',...outputFields].includes(key)) continue;
+          writeKV(key, val);
         }
       }
     }
-    
-    // Add any remaining fields not explicitly listed
-    for (const key in sysConfig) {
-      if (sysConfig.hasOwnProperty(key) && !csv.includes(`"${key}"`)) {
-        const value = sysConfig[key];
-        if (value !== undefined && value !== null && typeof value !== 'object') {
-          csv += `"${key}",${value}\n`;
-        } else if (Array.isArray(value)) {
-          csv += `"${key}","${value.join(',')}"\n`;
-        }
+
+    // Header row
+    ws.write(fieldNames.map(name => `"${name}"`).join(',') + '\n');
+
+    const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
+    for (const chunk of chunks) {
+      for (const frame of chunk.frames) {
+        for (let i=0;i<frame.length;i++) if (frame[i] === null || frame[i] === undefined) frame[i] = 'NaN';
+        ws.write(frame.join(',') + '\n');
       }
     }
-  }
-  
-  // Add field names (quoted) - no blank line before, perfect sample doesn't have one
-  csv += fieldNames.map(name => `"${name}"`).join(',') + '\n';
-  
-  // Get all chunks and extract frames
-  const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
-  let rowCount = 0;
-  
-  for (const chunk of chunks) {
-    for (const frame of chunk.frames) {
-      // Convert null/undefined to NaN to match perfect sample format
-      const cleanedFrame = frame.map(val => {
-        if (val === null || val === undefined) {
-          return 'NaN';
-        }
-        return val;
-      });
-      csv += cleanedFrame.join(',') + '\n';
-      rowCount++;
-    }
-  }
-  
-  // Write output (remove trailing newline to match perfect sample format)
-  csv = csv.trimEnd();  // Remove any trailing whitespace/newlines
-  fs.writeFileSync(outputFile, csv);
+    ws.end();
+  });
 }
 
-function generateJSON(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile, logIdx = 0, totalLogs = 1) {
-  const output = {
-    metadata: {
+async function generateJSONStream(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile, logIdx = 0, totalLogs = 1) {
+  await new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(outputFile, { encoding: 'utf8', highWaterMark: 1<<20 });
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+
+    const metadata = {
       product: "Blackbox flight data recorder by Nicholas Sherlock",
       firmware: {},
       craft: {},
       config: {},
-      flightInfo: {
-        logIndex: logIdx,
-        totalLogs: totalLogs,
-        logNumber: logIdx + 1
-      }
-    },
-    fields: fieldNames.map((name, index) => ({ name, index })),
-    frames: [],
-    stats: {
-      duration: ((maxTime - minTime) / 1000000),
-      frameCount: 0,
-      fieldCount: fieldNames.length,
-      totalFrames: 0,
-      sampleRate: 0
-    }
-  };
+      flightInfo: { logIndex: logIdx, totalLogs, logNumber: logIdx + 1 }
+    };
 
-  // Extract firmware info
-  if (sysConfig) {
-    if (sysConfig.firmwareType !== undefined) output.metadata.firmware.type = sysConfig.firmwareType;
-    if (sysConfig.firmware) output.metadata.firmware.version = sysConfig.firmware;
-    if (sysConfig.firmwarePatch !== undefined) output.metadata.firmware.patch = sysConfig.firmwarePatch;
-    if (sysConfig.firmwareVersion) output.metadata.firmware.fullVersion = sysConfig.firmwareVersion;
-    if (sysConfig['Firmware revision']) output.metadata.firmware.revision = sysConfig['Firmware revision'];
-    if (sysConfig['Firmware date']) output.metadata.firmware.date = sysConfig['Firmware date'];
-    
-    // Craft info
-    if (sysConfig['Board information']) output.metadata.craft.board = sysConfig['Board information'];
-    if (sysConfig['Craft name']) output.metadata.craft.name = sysConfig['Craft name'];
-    if (sysConfig['Log start datetime']) output.metadata.craft.logStartTime = sysConfig['Log start datetime'];
-    
-    // All config values
-    for (const key in sysConfig) {
-      if (sysConfig.hasOwnProperty(key) && 
-          !['Firmware revision', 'Firmware date', 'Board information', 'Craft name', 'Log start datetime'].includes(key)) {
-        output.metadata.config[key] = sysConfig[key];
+    if (sysConfig) {
+      if (sysConfig.firmwareType !== undefined) metadata.firmware.type = sysConfig.firmwareType;
+      if (sysConfig.firmware) metadata.firmware.version = sysConfig.firmware;
+      if (sysConfig.firmwarePatch !== undefined) metadata.firmware.patch = sysConfig.firmwarePatch;
+      if (sysConfig.firmwareVersion) metadata.firmware.fullVersion = sysConfig.firmwareVersion;
+      if (sysConfig['Firmware revision']) metadata.firmware.revision = sysConfig['Firmware revision'];
+      if (sysConfig['Firmware date']) metadata.firmware.date = sysConfig['Firmware date'];
+      if (sysConfig['Board information']) metadata.craft.board = sysConfig['Board information'];
+      if (sysConfig['Craft name']) metadata.craft.name = sysConfig['Craft name'];
+      if (sysConfig['Log start datetime']) metadata.craft.logStartTime = sysConfig['Log start datetime'];
+      for (const key in sysConfig) {
+        if (sysConfig.hasOwnProperty(key) && !['Firmware revision', 'Firmware date', 'Board information', 'Craft name', 'Log start datetime'].includes(key)) {
+          metadata.config[key] = sysConfig[key];
+        }
       }
     }
-  }
 
-  // Get all chunks and extract frames
-  const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
-  
-  for (const chunk of chunks) {
-    for (const frame of chunk.frames) {
-      // Convert null/undefined to null for JSON (more appropriate than "NaN" string)
-      const cleanedFrame = frame.map(val => (val === null || val === undefined) ? null : val);
-      output.frames.push(cleanedFrame);
-      output.stats.frameCount++;
+    // Begin JSON stream
+    ws.write('{');
+    ws.write(`"metadata":${JSON.stringify({ ...metadata, })},`);
+    ws.write(`"fields":${JSON.stringify(fieldNames.map((name, index) => ({ name, index })))},`);
+    // Stream frames
+    ws.write('"frames":[');
+    let first = true;
+    const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
+    let frameCount = 0;
+    for (const chunk of chunks) {
+      for (const frame of chunk.frames) {
+        const cleaned = frame.map(val => (val === null || val === undefined) ? null : val);
+        if (!first) ws.write(',');
+        ws.write(JSON.stringify(cleaned));
+        first = false;
+        frameCount++;
+      }
     }
-  }
-  
-  // Calculate stats
-  output.stats.totalFrames = output.stats.frameCount;
-  if (output.stats.duration > 0) {
-    output.stats.sampleRate = Math.round(output.stats.frameCount / output.stats.duration);
-  }
-
-  // Write JSON output
-  fs.writeFileSync(outputFile, JSON.stringify(output, null, 2), 'utf8');
+    const duration = ((maxTime - minTime) / 1000000);
+    const stats = { duration, frameCount, fieldCount: fieldNames.length, totalFrames: frameCount, sampleRate: duration > 0 ? Math.round(frameCount / duration) : 0 };
+    ws.write(`],"stats":${JSON.stringify(stats)}}`);
+    ws.end();
+  });
 }
