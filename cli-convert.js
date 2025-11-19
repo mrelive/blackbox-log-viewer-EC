@@ -115,8 +115,8 @@ if (logIndex !== -1 && args[logIndex + 1]) {
   args.splice(logIndex, 2); // Remove --log and its value
 }
 
-if (!['csv', 'json'].includes(format)) {
-  console.error(`Error: Invalid format '${format}'. Use 'csv' or 'json'.`);
+if (!['csv', 'json', 'binary'].includes(format)) {
+  console.error(`Error: Invalid format '${format}'. Use 'csv', 'json', or 'binary'.`);
   process.exit(1);
 }
 
@@ -201,6 +201,9 @@ try {
     if (format === 'json') {
       console.log('Generating JSON...');
       await generateJSONStream(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile, logIdx, logCount);
+    } else if (format === 'binary') {
+      console.log('Generating Binary...');
+      await generateBinaryStream(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile, logIdx, logCount);
     } else {
       console.log('Generating CSV...');
       await generateCSVStream(flightLog, fieldNames, sysConfig, minTime, maxTime, currentOutputFile);
@@ -360,6 +363,78 @@ async function generateJSONStream(flightLog, fieldNames, sysConfig, minTime, max
     const duration = ((maxTime - minTime) / 1000000);
     const stats = { duration, frameCount, fieldCount: fieldNames.length, totalFrames: frameCount, sampleRate: duration > 0 ? Math.round(frameCount / duration) : 0 };
     ws.write(`],"stats":${JSON.stringify(stats)}}`);
+    ws.end();
+  });
+}
+
+async function generateBinaryStream(flightLog, fieldNames, sysConfig, minTime, maxTime, outputFile, logIdx = 0, totalLogs = 1) {
+  await new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(outputFile);
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+
+    const metadata = {
+      headers: fieldNames,
+      product: "Blackbox flight data recorder by Nicholas Sherlock",
+      firmware: {},
+      craft: {},
+      config: {},
+      flightInfo: { logIndex: logIdx, totalLogs, logNumber: logIdx + 1 }
+    };
+
+    if (sysConfig) {
+      if (sysConfig.firmwareType !== undefined) metadata.firmware.type = sysConfig.firmwareType;
+      if (sysConfig.firmware) metadata.firmware.version = sysConfig.firmware;
+      if (sysConfig.firmwarePatch !== undefined) metadata.firmware.patch = sysConfig.firmwarePatch;
+      if (sysConfig.firmwareVersion) metadata.firmware.fullVersion = sysConfig.firmwareVersion;
+      if (sysConfig['Firmware revision']) metadata.firmware.revision = sysConfig['Firmware revision'];
+      if (sysConfig['Firmware date']) metadata.firmware.date = sysConfig['Firmware date'];
+      if (sysConfig['Board information']) metadata.craft.board = sysConfig['Board information'];
+      if (sysConfig['Craft name']) metadata.craft.name = sysConfig['Craft name'];
+      if (sysConfig['Log start datetime']) metadata.craft.logStartTime = sysConfig['Log start datetime'];
+      for (const key in sysConfig) {
+        if (sysConfig.hasOwnProperty(key) && !['Firmware revision', 'Firmware date', 'Board information', 'Craft name', 'Log start datetime'].includes(key)) {
+          metadata.config[key] = sysConfig[key];
+        }
+      }
+    }
+
+    // Write JSON Header + Newline
+    const headerStr = JSON.stringify(metadata);
+    ws.write(headerStr);
+    ws.write('\n');
+
+    // Write Binary Data
+    const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
+    for (const chunk of chunks) {
+      // Calculate buffer size for this chunk
+      // chunk.frames is an array of arrays (rows)
+      // Each row has fieldNames.length values
+      // Each value is a Float32 (4 bytes)
+      const numRows = chunk.frames.length;
+      const numCols = fieldNames.length;
+      const bufferSize = numRows * numCols * 4;
+      const buffer = Buffer.allocUnsafe(bufferSize);
+      
+      let offset = 0;
+      for (const frame of chunk.frames) {
+        for (let i = 0; i < numCols; i++) {
+          let val = frame[i];
+          // Handle null/undefined/NaN -> 0 or NaN? 
+          // Float32Array defaults to 0, but let's be explicit.
+          // Standard CSV parser turns nulls into NaNs usually or empty strings.
+          // Let's use 0 for null/undefined to be safe, or NaN if it was meant to be a number.
+          if (val === null || val === undefined) val = 0; 
+          // Ensure it's a number
+          val = Number(val);
+          
+          buffer.writeFloatLE(val, offset);
+          offset += 4;
+        }
+      }
+      ws.write(buffer);
+    }
+    
     ws.end();
   });
 }
