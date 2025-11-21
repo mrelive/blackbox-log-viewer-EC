@@ -59,6 +59,11 @@ const outputFile = args[1] || inputFile.replace(/\.bbl$/i, defaultExt);
     const logCount = flightLog.getLogCount();
     if(logCount===0){ console.error('No valid logs found'); process.exit(1); }
 
+    console.log(`Found ${logCount} log(s)`);
+    if (args.includes('--info')) {
+      process.exit(0);
+    }
+
     let logsToProcess = [];
     if(specificLog!=null){ if(specificLog<0||specificLog>=logCount){ console.error('Log index out of range'); process.exit(1);} logsToProcess=[specificLog]; }
     else if(splitFlights){ logsToProcess = Array.from({length:logCount}, (_,i)=>i); }

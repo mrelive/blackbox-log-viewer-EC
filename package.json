@@ -2,8 +2,8 @@
   "name": "echo-corp-blackbox-decoder",
   "productName": "ECHO CORP Blackbox Decoder",
   "displayName": "ECHO CORP Blackbox Decoder",
-  "description": "Echo Corp standalone Betaflight blackbox log decoder (CSV/JSON output).",
-  "version": "1.0.7",
+  "description": "Echo Corp standalone Blackbox log decoder (CSV/JSON output).",
+  "version": "1.0.8",
   "type": "module",
   "main": "index.html",
   "bin": {

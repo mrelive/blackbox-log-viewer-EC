@@ -108,6 +108,13 @@ if (splitIndex !== -1) {
   args.splice(splitIndex, 1); // Remove --split
 }
 
+const infoIndex = args.findIndex(arg => arg === '--info');
+let infoOnly = false;
+if (infoIndex !== -1) {
+  infoOnly = true;
+  args.splice(infoIndex, 1); // Remove --info
+}
+
 const logIndex = args.findIndex(arg => arg === '--log');
 let specificLog = null;
 if (logIndex !== -1 && args[logIndex + 1]) {
@@ -127,6 +134,19 @@ const outputFile = args[1] || inputFile.replace(/\.bbl$/i, defaultExt);
 if (!fs.existsSync(inputFile)) {
   console.error(`Error: Input file not found: ${inputFile}`);
   process.exit(1);
+}
+
+if (infoOnly) {
+  try {
+    const fileData = fs.readFileSync(inputFile);
+    const flightLog = new FlightLog(fileData);
+    const logCount = flightLog.getLogCount();
+    console.log(`Found ${logCount} log(s)`);
+    process.exit(0);
+  } catch (error) {
+    console.error(`Error reading log info: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 console.log(`Converting: ${inputFile}`);
@@ -349,20 +369,17 @@ async function generateJSONStream(flightLog, fieldNames, sysConfig, minTime, max
     // Stream frames
     ws.write('"frames":[');
     let first = true;
+    
     const chunks = flightLog.getChunksInTimeRange(minTime, maxTime);
-    let frameCount = 0;
     for (const chunk of chunks) {
       for (const frame of chunk.frames) {
-        const cleaned = frame.map(val => (val === null || val === undefined) ? null : val);
-        if (!first) ws.write(',');
-        ws.write(JSON.stringify(cleaned));
+        const row = frame.map(v => (v==null?null:v));
+        if(!first) ws.write(',');
+        ws.write(JSON.stringify(row));
         first = false;
-        frameCount++;
       }
     }
-    const duration = ((maxTime - minTime) / 1000000);
-    const stats = { duration, frameCount, fieldCount: fieldNames.length, totalFrames: frameCount, sampleRate: duration > 0 ? Math.round(frameCount / duration) : 0 };
-    ws.write(`],"stats":${JSON.stringify(stats)}}`);
+    ws.write(']}');
     ws.end();
   });
 }

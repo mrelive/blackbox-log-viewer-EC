@@ -7069,8 +7069,8 @@ var require_package = __commonJS({
       name: "echo-corp-blackbox-decoder",
       productName: "ECHO CORP Blackbox Decoder",
       displayName: "ECHO CORP Blackbox Decoder",
-      description: "Echo Corp standalone Betaflight blackbox log decoder (CSV/JSON output).",
-      version: "1.0.6",
+      description: "Echo Corp standalone Blackbox log decoder (CSV/JSON output).",
+      version: "1.0.8",
       type: "module",
       main: "index.html",
       bin: {
@@ -7241,6 +7241,10 @@ var outputFile = args[1] || inputFile.replace(/\.bbl$/i, defaultExt);
     if (logCount === 0) {
       console.error("No valid logs found");
       process.exit(1);
+    }
+    console.log(`Found ${logCount} log(s)`);
+    if (args.includes("--info")) {
+      process.exit(0);
     }
     let logsToProcess = [];
     if (specificLog != null) {
