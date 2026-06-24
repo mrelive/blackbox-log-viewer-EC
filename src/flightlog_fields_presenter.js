@@ -5,8 +5,8 @@ import {
   FLIGHT_LOG_FLIGHT_STATE_NAME,
   FLIGHT_LOG_FAILSAFE_PHASE_NAME,
   FFT_CALC_STEPS,
-} from "./flightlog_fielddefs.js";
-import { formatTime } from "./tools.js";
+} from "./flightlog_fielddefs";
+import { formatTime } from "./tools";
 
 export function FlightLogFieldPresenter() {
   // this is intentional
@@ -129,6 +129,11 @@ const FRIENDLY_FIELD_NAMES = {
   GPS_altitude: "GPS Altitude ASL",
   GPS_speed: "GPS Speed",
   GPS_ground_course: "GPS Heading",
+
+  "GPS_velned[all]": "GPS NED velocities",
+  "GPS_velned[0]": "North velocity",
+  "GPS_velned[1]": "East velocity",
+  "GPS_velned[2]": "Down velocity",
 
   "gpsCartesianCoords[all]": "GPS Coords",
   "gpsCartesianCoords[0]": "GPS Coords [X]",
@@ -1138,8 +1143,12 @@ const DEBUG_FRIENDLY_FIELD_NAMES_INITIAL = {
     "debug[all]": "MAVLink telemetry",
     "debug[0]": "Should send telemetry",
     "debug[1]": "Actual free TX buffers space",
-    "debug[2]": "Estimated free TX buffers space",
-    "debug[3]": "Telemetries call counter",
+    "debug[2]": "Status counter",
+    "debug[3]": "RC chan. counter",
+    "debug[4]": "GPS pos. counter",
+    "debug[5]": "Attitude (ex.1) counter",
+    "debug[6]": "Heartbeat (ex.2) counter",
+    "debug[7]": "Battery (ex.3) counter",
   },
 };
 
@@ -1832,6 +1841,11 @@ FlightLogFieldPresenter.decodeFieldToFriendly = function (
       }
     case "GPS_ground_course":
       return `${(value / 10).toFixed(1)} °`;
+
+    case "GPS_velned[0]":
+    case "GPS_velned[1]":
+    case "GPS_velned[2]":
+      return `${(value / 100).toFixed(1)} m/s`;
 
     case "gpsCartesianCoords[0]":
     case "gpsCartesianCoords[1]":
@@ -2578,6 +2592,10 @@ FlightLogFieldPresenter.ConvertFieldValue = function (
       }
     case "GPS_ground_course":
       return toFriendly ? value / 10 : value * 10;
+    case "GPS_velned[0]":
+    case "GPS_velned[1]":
+    case "GPS_velned[2]":
+      return toFriendly ? value / 100 : value * 100;
     case "magADC[0]":
     case "magADC[1]":
     case "magADC[2]":

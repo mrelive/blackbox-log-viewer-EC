@@ -1,6 +1,6 @@
-import { FlightLogIndex } from "./flightlog_index.js";
-import { FlightLogParser } from "./flightlog_parser.js";
-import { GPS_transform } from "./gps_transform.js";
+import { FlightLogIndex } from "./flightlog_index";
+import { FlightLogParser } from "./flightlog_parser";
+import { GPS_transform } from "./gps_transform";
 import {
   MAX_MOTOR_NUMBER,
   DSHOT_MIN_VALUE,
@@ -9,16 +9,16 @@ import {
   AXIS,
   FAST_PROTOCOL,
   SUPER_EXPO_YAW,
-} from "./flightlog_fielddefs.js";
-import { IMU } from "./imu.js";
-import { FIFOCache } from "./cache.js";
+} from "./flightlog_fielddefs";
+import { IMU } from "./imu";
+import { FIFOCache } from "./cache";
 import {
   binarySearchOrPrevious,
   binarySearchOrNext,
   constrain,
   validate,
   firmwareGreaterOrEqual,
-} from "./tools.js";
+} from "./tools";
 
 /**
  * Uses a FlightLogParser to provide on-demand parsing (and caching) of the flight data log.
@@ -266,7 +266,8 @@ export function FlightLog(logData) {
     }
 
     // Add names for our ADDITIONAL_COMPUTED_FIELDS
-    if (!that.isFieldDisabled().GYRO) {
+    // Add heading fields when: ATTITUDE enabled (quaternion available) OR both GYRO and ACC enabled (IMU estimation available)
+    if ((!that.isFieldDisabled().GYRO && !that.isFieldDisabled().ACC) || !that.isFieldDisabled().ATTITUDE) {
       fieldNames.push("heading[0]", "heading[1]", "heading[2]");
     }
     if (!that.isFieldDisabled().PID) {
@@ -772,7 +773,7 @@ export function FlightLog(logData) {
             destFrame[fieldIndex++] = roll;
             destFrame[fieldIndex++] = pitch;
             destFrame[fieldIndex++] = heading;
-          } else {
+          } else if (gyroADC && accSmooth) {
             const attitude = chunkIMU.updateEstimatedAttitude(
                     [srcFrame[gyroADC[0]], srcFrame[gyroADC[1]], srcFrame[gyroADC[2]]],
                     [srcFrame[accSmooth[0]], srcFrame[accSmooth[1]], srcFrame[accSmooth[2]]],
