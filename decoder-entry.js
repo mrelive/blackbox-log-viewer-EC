@@ -7218,3 +7218,5 @@ function buildJSON(flightLog, fieldNames, minTime, maxTime, logIdx, totalLogs) {
   }
   return out;
 }
+
+export { FlightLog2 as FlightLog };

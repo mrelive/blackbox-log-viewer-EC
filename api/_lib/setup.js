@@ -52,8 +52,11 @@ let _FlightLog = null;
 export async function getFlightLog() {
   if (!_FlightLog) {
     setupBrowserGlobals();
-    const mod = await import('../../src/flightlog.js');
-    _FlightLog = mod.FlightLog;
+    const mod = await import('../../decoder-entry.js');
+    _FlightLog = mod.FlightLog || mod.default?.FlightLog;
+    if (!_FlightLog) {
+      throw new Error('FlightLog export not found in decoder bundle');
+    }
   }
   return _FlightLog;
 }
