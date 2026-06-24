@@ -1,8 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "yarn build",
-  "outputDirectory": "dist",
-  "installCommand": "yarn install",
+  "installCommand": "npm install --production=false",
   "functions": {
     "api/**/*.js": {
       "maxDuration": 60,
