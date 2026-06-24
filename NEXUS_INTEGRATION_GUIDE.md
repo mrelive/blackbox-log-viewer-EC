@@ -273,3 +273,76 @@ Embed `NOTICE_GPL_DECODER.txt` contents in your app’s "About / Third-Party Lic
 ---
 ## 15. Summary
 You now outsource `.bbl` decoding to an external GPLv3 tool via a child process, maintaining clear legal separation while simplifying maintenance. All integration surfaces—path resolution, spawning, error handling, compliance, and UX—are covered above.
+
+---
+## 16. Serverless Async Conversion API (Large Logs)
+
+For large logs where synchronous API conversion may hit serverless limits, use the async job endpoints.
+
+### Endpoints
+
+1. `POST /api/blackbox/jobs/create`
+- Request: `multipart/form-data`
+  - `file`: `.bbl/.bfl` file (required)
+  - `format`: `csv|json` (optional, default `csv`)
+  - `logIndex`: number (optional, default `0`)
+- Response: `202`
+```json
+{
+  "jobId": "...",
+  "status": "queued",
+  "format": "csv",
+  "logIndex": 0,
+  "statusUrl": "https://.../api/blackbox/jobs/status?jobId=...",
+  "resultUrl": "https://.../api/blackbox/jobs/result?jobId=...",
+  "processUrl": "https://.../api/blackbox/jobs/process?jobId=..."
+}
+```
+
+2. `GET /api/blackbox/jobs/status?jobId=<id>[&run=1]`
+- Returns state machine fields: `queued|processing|completed|failed`.
+- Optional `run=1` triggers processing attempt in the same request.
+
+3. `POST /api/blackbox/jobs/process?jobId=<id>`
+- Explicit processing trigger. Useful when you want the client/app to control retries.
+
+4. `GET /api/blackbox/jobs/result?jobId=<id>`
+- Streams final artifact (`text/csv` or `application/json`) once job is complete.
+- Returns `409` when job is not complete.
+
+5. `POST /api/blackbox/convert-smart`
+- Same multipart inputs as convert (`file`, optional `format`, optional `logIndex`).
+- New behavior for new clients only:
+  - Small files: synchronous streaming response (same as convert).
+  - Large files: `202` async job response with `statusUrl`, `processUrl`, `resultUrl`.
+- Large-file threshold is controlled by `BBL_ASYNC_THRESHOLD_MB` (default 10).
+
+### Idempotency and Retry Hardening
+
+- Optional idempotency key can be supplied by one of:
+  - multipart field `idempotencyKey`
+  - query parameter `idempotencyKey`
+  - header `X-Idempotency-Key`
+- If a matching key already maps to a job, create endpoint returns that existing job (`reused: true`).
+- Status now includes `attempts` and `nextRetryAt` for controlled retries.
+- Processor applies distributed lock + exponential backoff to reduce duplicate processing under concurrency.
+
+### Required Environment Variables
+
+- `BLOB_READ_WRITE_TOKEN` for Vercel Blob read/write.
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN` for KV metadata/state.
+
+Optional:
+- `BBL_JOB_TTL_SECONDS` (default 6 hours)
+- `BBL_MAX_FILE_SIZE_MB` (default 100)
+- `BBL_ASYNC_THRESHOLD_MB` (default 10)
+- `BBL_JOB_MAX_ATTEMPTS` (default 3)
+- `BBL_JOB_RETRY_BASE_MS` (default 3000)
+- `BBL_JOB_RETRY_MAX_MS` (default 60000)
+- `BBL_JOB_LOCK_TTL_SECONDS` (default 60)
+
+### Compatibility Notes
+
+- Existing sync endpoint remains unchanged: `POST /api/blackbox/convert`.
+- Existing clients can keep using sync conversion.
+- New clients or large-log paths should use async jobs to avoid request timeout/response-size issues.

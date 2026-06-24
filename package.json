@@ -32,7 +32,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
-    "build:decoder": "node build-decoder.cjs"
+    "build:decoder": "node build-decoder.cjs",
+    "smoke:async-jobs": "pwsh ./tools/smoke-async-jobs.ps1"
   },
   "repository": {
     "type": "git",
@@ -41,6 +42,8 @@
   "author": "The Betaflight open source project.",
   "license": "GPL-3.0",
   "dependencies": {
+    "@vercel/blob": "^2.4.1",
+    "@vercel/kv": "^3.0.0",
     "Leaflet.MultiOptionsPolyline": "hgoebl/Leaflet.MultiOptionsPolyline",
     "bootstrap": "~3.4.1",
     "busboy": "^1.6.0",
