@@ -35,7 +35,13 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Missing job output location' });
     }
 
-    const blobResponse = await fetch(job.outputBlobUrl);
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    const headers = token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : undefined;
+    const blobResponse = await fetch(job.outputBlobUrl, { headers });
     if (!blobResponse.ok || !blobResponse.body) {
       return res.status(502).json({ error: `Unable to fetch output blob (${blobResponse.status})` });
     }

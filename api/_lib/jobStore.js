@@ -106,7 +106,7 @@ export async function createJob({ filename, mimeType, format, logIndex, fileBuff
   const safeFile = filename || `upload-${jobId}.bbl`;
 
   const inputBlob = await put(`blackbox/jobs/${jobId}/input-${safeFile}`, fileBuffer, {
-    access: 'public',
+    access: 'private',
     contentType: mimeType || 'application/octet-stream',
     addRandomSuffix: false,
   });
@@ -191,7 +191,7 @@ export async function storeJobOutput(jobId, { streamOrBuffer, contentType, filen
   ensureJobStoreConfigured();
 
   const outputBlob = await put(`blackbox/jobs/${jobId}/output-${filename}`, streamOrBuffer, {
-    access: 'public',
+    access: 'private',
     contentType,
     addRandomSuffix: false,
   });
@@ -200,7 +200,13 @@ export async function storeJobOutput(jobId, { streamOrBuffer, contentType, filen
 }
 
 export async function readBlobBuffer(blobUrl) {
-  const response = await fetch(blobUrl);
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  const headers = token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : undefined;
+  const response = await fetch(blobUrl, { headers });
   if (!response.ok) {
     throw new Error(`Unable to fetch blob content (${response.status})`);
   }
