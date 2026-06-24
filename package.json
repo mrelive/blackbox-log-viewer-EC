@@ -44,7 +44,7 @@
   "dependencies": {
     "@vercel/blob": "^2.4.1",
     "@vercel/kv": "^3.0.0",
-    "Leaflet.MultiOptionsPolyline": "hgoebl/Leaflet.MultiOptionsPolyline",
+    "Leaflet.MultiOptionsPolyline": "git+https://github.com/hgoebl/Leaflet.MultiOptionsPolyline.git#ebd929f3f3c9f0eca9ef13d46ff04533aa1d3116",
     "bootstrap": "~3.4.1",
     "busboy": "^1.6.0",
     "eslint": "^8.24.0",

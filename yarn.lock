@@ -1278,7 +1278,7 @@
 
 Leaflet.MultiOptionsPolyline@hgoebl/Leaflet.MultiOptionsPolyline:
   version "1.0.0"
-  resolved "git+ssh://git@github.com/hgoebl/Leaflet.MultiOptionsPolyline.git#ebd929f3f3c9f0eca9ef13d46ff04533aa1d3116"
+  resolved "git+https://github.com/hgoebl/Leaflet.MultiOptionsPolyline.git#ebd929f3f3c9f0eca9ef13d46ff04533aa1d3116"
 
 acorn-jsx@^5.3.2:
   version "5.3.2"
