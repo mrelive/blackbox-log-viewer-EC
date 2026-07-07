@@ -30,6 +30,19 @@ function getAsyncThresholdBytes() {
   return mb * 1024 * 1024;
 }
 
+function hasAsyncInfraConfig() {
+  const hasRedis = String(process.env.REDIS_URL || '').trim().length > 0;
+  const hasS3Bucket = String(process.env.S3_BUCKET || '').trim().length > 0;
+  const hasS3Key = String(process.env.S3_ACCESS_KEY_ID || '').trim().length > 0;
+  const hasS3Secret = String(process.env.S3_SECRET_ACCESS_KEY || '').trim().length > 0;
+  const hasS3EndpointOrRegion =
+    String(process.env.S3_ENDPOINT || '').trim().length > 0 ||
+    String(process.env.S3_REGION || '').trim().length > 0 ||
+    String(process.env.AWS_REGION || '').trim().length > 0;
+
+  return hasRedis && hasS3Bucket && hasS3Key && hasS3Secret && hasS3EndpointOrRegion;
+}
+
 function buildAsyncUrls(req, jobId) {
   const origin = getApiOrigin(req);
   return {
@@ -58,7 +71,7 @@ export default async function handler(req, res) {
       getField(fields, 'idempotencyKey') ?? req.query?.idempotencyKey ?? req.headers['x-idempotency-key'] ?? ''
     ).trim();
 
-    if (fileBuffer.length > getAsyncThresholdBytes()) {
+    if (fileBuffer.length > getAsyncThresholdBytes() && hasAsyncInfraConfig()) {
       let job = null;
       let reused = false;
 
